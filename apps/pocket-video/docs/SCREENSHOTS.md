@@ -1,6 +1,6 @@
 # Screenshots
 
-Captured from the running Vite application at `http://127.0.0.1:5173` (proxying the Go service on `127.0.0.1:8081`). Every image is a real Chromium capture of a live page. All 19 files have distinct SHA-256 hashes and verified PNG dimensions; `make test` fails if a duplicate appears.
+Captured from the running Vite application at `http://127.0.0.1:5173`, which proxies `/api` to the Go service on `127.0.0.1:8080`. Every image is a real Chromium capture of a live page. All 19 files have distinct SHA-256 hashes and verified PNG dimensions; `make test` fails if a duplicate appears.
 
 ## Route and state captures (1280×720 CSS viewport, 1× device scale)
 
