@@ -21,8 +21,10 @@ type Video struct {
 	Cover      string `json:"cover"`
 	HasVideo   bool   `json:"has_video"`
 	HasAudio   bool   `json:"has_audio"`
-	VideoPath  string `json:"video_path,omitempty"`
-	AudioPath  string `json:"audio_path,omitempty"`
+	// Local media paths stay inside the service; clients use has_video,
+	// has_audio, and the /api/media and /api/cover endpoints.
+	VideoPath string `json:"-"`
+	AudioPath string `json:"-"`
 }
 
 // Task is one download job. Title is joined from videos so clients can render a

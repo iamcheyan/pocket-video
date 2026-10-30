@@ -80,7 +80,7 @@ func (s *Server) videos(w http.ResponseWriter, r *http.Request) {
 		where += " AND favorite_id = ?"
 		args = append(args, favoriteID)
 	}
-	var total int
+	var total, downloaded int
 	if err := s.db.QueryRow("SELECT count(*) FROM videos "+where, args...).Scan(&total); err != nil {
 		fail(w, http.StatusInternalServerError, "database", err.Error())
 		return
@@ -100,9 +100,13 @@ func (s *Server) videos(w http.ResponseWriter, r *http.Request) {
 		}
 		v.HasVideo = v.VideoPath != ""
 		v.HasAudio = v.AudioPath != ""
+		if v.Cover != "" {
+			v.Cover = "/api/cover/" + v.ID
+		}
 		out = append(out, v)
 	}
-	jsonOut(w, map[string]any{"items": out, "limit": limit, "offset": offset, "total": total})
+	_ = s.db.QueryRow("SELECT count(*) FROM videos WHERE COALESCE(video_path,'')<>''").Scan(&downloaded)
+	jsonOut(w, map[string]any{"items": out, "limit": limit, "offset": offset, "total": total, "downloaded": downloaded})
 }
 
 func (s *Server) video(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +122,9 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 	}
 	v.HasVideo = v.VideoPath != ""
 	v.HasAudio = v.AudioPath != ""
+	if v.Cover != "" {
+		v.Cover = "/api/cover/" + v.ID
+	}
 	jsonOut(w, v)
 }
 
@@ -373,5 +380,16 @@ func (s *Server) media(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, "media_not_found", "downloaded media is unavailable")
 		return
 	}
+	http.ServeFile(w, r, path)
+}
+
+// cover serves the cached artwork extracted when a video finished downloading.
+func (s *Server) cover(w http.ResponseWriter, r *http.Request) {
+	var path string
+	if err := s.db.QueryRow("SELECT COALESCE(cover,'') FROM videos WHERE id=?", r.PathValue("id")).Scan(&path); err != nil || path == "" {
+		fail(w, http.StatusNotFound, "cover_not_found", "no cached artwork for this video")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, path)
 }

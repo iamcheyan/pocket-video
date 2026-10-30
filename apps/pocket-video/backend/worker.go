@@ -98,6 +98,11 @@ func (s *Server) start(id int64, req DownloadRequest) {
 			s.mu.Unlock()
 			return
 		}
+		if req.Kind == "video" && s.provider.Name() == "mock" {
+			if cover, coverErr := generateDemoPoster(ctx, result.Path, cacheDir, req.VideoID); coverErr == nil {
+				_, _ = s.db.Exec("UPDATE videos SET cover=? WHERE id=?", cover, req.VideoID)
+			}
+		}
 		_, _ = s.db.Exec("UPDATE download_tasks SET status='done',downloaded_bytes=total_bytes,error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?", id)
 		s.mu.Lock()
 		s.workerStates[id] = "done"

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"os/exec"
@@ -14,6 +15,24 @@ import (
 )
 
 type ProviderDownloadConfig struct{ OutputDir, Proxy string }
+
+// generateDemoPoster extracts one frame so the library shows a real cover and
+// the player shows artwork before decoding starts. Missing ffmpeg is not fatal.
+func generateDemoPoster(ctx context.Context, source, cacheDir, videoID string) (string, error) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return "", err
+	}
+	poster := filepath.Join(cacheDir, videoID+".jpg")
+	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-ss", "1", "-i", source, "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", poster}
+	if output, err := exec.CommandContext(ctx, ffmpeg, args...).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("generate poster: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return poster, nil
+}
 
 // Download copies deterministic demo media into dst, reporting progress and
 // honouring the persisted byte offset so pause/resume is observable.
@@ -26,7 +45,7 @@ func (MockProvider) Download(ctx context.Context, req DownloadRequest, dst strin
 		if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
 			return Result{}, err
 		}
-		if err := generateDemoMedia(ctx, source, req.Kind); err != nil {
+		if err := generateDemoMedia(ctx, source, req.Kind, req.VideoID); err != nil {
 			return Result{}, err
 		}
 	}
@@ -98,7 +117,26 @@ func (MockProvider) Download(ctx context.Context, req DownloadRequest, dst strin
 	return Result{Path: dst}, nil
 }
 
-func generateDemoMedia(ctx context.Context, dst, kind string) error {
+// demoPalettes keeps every generated clip on the app's muted palette while
+// still giving each video a distinct cover.
+var demoPalettes = [][2]string{
+	{"0x748b60", "0xdce5d2"},
+	{"0xb98e6a", "0xf0dfc4"},
+	{"0x5b7b93", "0xdce7ee"},
+	{"0x966b83", "0xece1e7"},
+	{"0x3f5a48", "0xa9c0a5"},
+	{"0xc9a06a", "0xf4e8d2"},
+}
+
+func paletteFor(seed string) int {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(seed))
+	return int(hash.Sum32() % uint32(len(demoPalettes)))
+}
+
+// generateDemoMedia produces deterministic, on-brand demo media: a slow
+// gradient "clip" plus a quiet tone, or a tone alone for audio tasks.
+func generateDemoMedia(ctx context.Context, dst, kind, seed string) error {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return fmt.Errorf("mock playable media requires ffmpeg: %w", err)
@@ -107,7 +145,9 @@ func generateDemoMedia(ctx context.Context, dst, kind string) error {
 	if kind == "audio" {
 		args = append(args, "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-c:a", "aac", "-movflags", "+faststart", dst)
 	} else {
-		args = append(args, "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=8", "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", dst)
+		palette := demoPalettes[paletteFor(seed)]
+		source := fmt.Sprintf("gradients=s=640x360:c0=%s:c1=%s:x0=0:y0=0:x1=640:y1=360:speed=0.012:duration=8:rate=24", palette[0], palette[1])
+		args = append(args, "-f", "lavfi", "-i", source, "-f", "lavfi", "-i", "sine=frequency=330:duration=8", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", dst)
 	}
 	output, err := exec.CommandContext(ctx, ffmpeg, args...).CombinedOutput()
 	if err != nil {

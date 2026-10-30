@@ -100,6 +100,7 @@ func (s *Server) routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/settings", s.settings)
 	m.HandleFunc("PUT /api/settings", s.updateSettings)
 	m.HandleFunc("GET /api/media/{id}", s.media)
+	m.HandleFunc("GET /api/cover/{id}", s.cover)
 }
 
 func cors(next http.Handler) http.Handler {

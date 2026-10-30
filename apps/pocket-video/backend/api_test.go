@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -174,5 +175,49 @@ func TestSettingsValidationRejectsRelativeDirectories(t *testing.T) {
 	_ = s.db.QueryRow("SELECT language FROM settings WHERE id=1").Scan(&lang)
 	if lang != "en" {
 		t.Fatalf("rejected settings mutated the row: %q", lang)
+	}
+}
+
+func TestDownloadedVideoGetsServedCover(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg is required for demo artwork")
+	}
+	s := testServer(t)
+	m := http.NewServeMux()
+	s.routes(m)
+	if r := request(m, "POST", "/api/download", `{"video_id":"BV1DEMO003","kind":"video"}`); r.Code != http.StatusAccepted {
+		t.Fatalf("download: %d %s", r.Code, r.Body.String())
+	}
+	var id int64
+	if err := s.db.QueryRow("SELECT id FROM download_tasks").Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	waitTask(t, s, id, "done")
+	var coverPath string
+	if err := s.db.QueryRow("SELECT COALESCE(cover,'') FROM videos WHERE id='BV1DEMO003'").Scan(&coverPath); err != nil || coverPath == "" {
+		t.Fatalf("cover path=%q err=%v", coverPath, err)
+	}
+	if st, err := os.Stat(coverPath); err != nil || st.Size() == 0 {
+		t.Fatalf("cover file missing: %v", err)
+	}
+	var page struct {
+		Items []Video `json:"items"`
+	}
+	if err := json.Unmarshal(request(m, "GET", "/api/videos?q=PocketJS", "").Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	for _, video := range page.Items {
+		if video.ID == "BV1DEMO003" {
+			if video.Cover != "/api/cover/BV1DEMO003" {
+				t.Fatalf("API cover should be a URL, got %q", video.Cover)
+			}
+			if video.VideoPath != "" {
+				t.Fatalf("local media path leaked: %q", video.VideoPath)
+			}
+		}
+	}
+	cover := request(m, "GET", "/api/cover/BV1DEMO003", "")
+	if cover.Code != http.StatusOK || cover.Body.Len() == 0 || cover.Header().Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("cover response status=%d type=%q bytes=%d", cover.Code, cover.Header().Get("Content-Type"), cover.Body.Len())
 	}
 }
