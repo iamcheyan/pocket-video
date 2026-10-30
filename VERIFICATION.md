@@ -1,8 +1,8 @@
 # Verification — pocket-video @ 2026-10-31
 
 - Verdict: PASS
-- Commit: `__COMMIT__` (favicon fix + screenshots; this document is the following commit)
-- Remote: `__REMOTE__`
+- Commit: `e17ae8cc12fc25da564604a34cc8f3b840405910` (favicon fix + screenshots; this document is the following commit)
+- Remote: `e17ae8cc12fc25da564604a34cc8f3b840405910`
 - Runtime: `python3 scripts/capture-screenshots.py --serve` → Go service `127.0.0.1:8080` (mock provider, SQLite) + Vite `127.0.0.1:5173`; production build also verified with `npm run build`
 - Toolchain: go 1.26.0, node v22.23.3, Chrome 155.0.8059.84, ffmpeg present
 
