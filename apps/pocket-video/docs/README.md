@@ -1,22 +1,34 @@
-# PocketVideo
+# PocketVideo documentation
 
-## Quick start
+Start with the [project README](../README.md), then pick a topic:
 
-Requirements: Go, Node.js, npm, and `ffmpeg` (used to generate playable deterministic demo media).
+| Document | Contents |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layer boundaries, request flow, provider adapters, media pipeline, PocketJS/PJOS portability |
+| [API.md](API.md) | REST contract, payloads, validation, error envelope, task state machine |
+| [DATABASE.md](DATABASE.md) | SQLite schema, migrations, seed data, status transitions |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Local workflow, mock catalog, adding a provider, i18n/layout conventions |
+| [PACKAGING.md](PACKAGING.md) | Planned `.pj` package layout and PJOS runtime mapping |
+| [ROADMAP.md](ROADMAP.md) | What exists, what is next, known gaps |
+| [SCREENSHOTS.md](SCREENSHOTS.md) | Verified capture gallery and reproduction command |
 
-Start one terminal per service:
+## Commands
 
 ```sh
-cd apps/pocket-video/backend && go mod download && go run .
-cd apps/pocket-video/frontend && npm install && npm run dev
+make backend        # Go service on :8080 (mock provider)
+make frontend       # Vite dev server on :5173
+make test           # Go tests, frontend tests, production build, screenshot verification
+make screenshots    # start missing servers, seed demo downloads, recapture the gallery
+make verify         # verify images and layout without recapturing
 ```
 
-Open `http://localhost:5173`. The backend defaults to Mock mode and stores SQLite data under `./data`. For the real download provider, set `POCKETVIDEO_PROVIDER=ytdlp` when starting the backend; install yt-dlp separately. The provider runs yt-dlp only from Go, downloads media into the configured download directory, and applies the saved proxy. Authenticated Bilibili favorite sync requires login and currently reports a clear unavailable error. Do not place cookies or credentials in the repository.
+Environment variables:
 
-Run `make test` from the repository root for Go unit/integration coverage, i18n key parity, and TypeScript/Vite production build. Run `make backend` and `make frontend` in separate terminals as launch helpers.
-
-## Layout
-
-`apps/pocket-video/frontend` is the browser client. `backend` is the Go service, SQLite owner and sole command execution boundary. `docs` contains architecture/API/database/roadmap and screenshot index. `tests` describes the test entry points.
-
-See [SCREENSHOTS.md](SCREENSHOTS.md) for the Chromium screenshot file list, pixel dimensions, and reproduction command.
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `POCKETVIDEO_DATA` | SQLite, cache, and download root | `./data` in `backend/` |
+| `POCKETVIDEO_ADDR` | Listen address | `:8080` |
+| `POCKETVIDEO_PROVIDER` | `mock` or `ytdlp` | `mock` |
+| `POCKETVIDEO_PROXY` | Proxy for the live provider at startup | empty |
+| `YT_DLP_BINARY` | yt-dlp executable | `yt-dlp` from `PATH` |
+| `CHROME_BIN` | Browser for screenshots | auto-detected |
