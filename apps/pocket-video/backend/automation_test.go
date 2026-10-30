@@ -44,6 +44,9 @@ func TestMigrationsAreIdempotent(t *testing.T) {
 type countingProvider struct{ calls int }
 
 func (p *countingProvider) Name() string { return "counting" }
+func (p *countingProvider) Account(context.Context) (Account, error) {
+	return Account{Mode: "demo", Provider: "counting", Authenticated: true, DisplayName: "Counting"}, nil
+}
 func (p *countingProvider) SyncFavorites(context.Context) ([]Favorite, error) {
 	p.calls++
 	return []Favorite{{ID: "auto", Title: "Automatic favorites", VideoCount: 1, LastSyncAt: time.Now().UTC().Format(time.RFC3339)}}, nil

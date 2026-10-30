@@ -34,12 +34,16 @@ func testServer(t *testing.T) *Server {
 func TestMigrationAndMockProvider(t *testing.T) {
 	s := testServer(t)
 	var n int
-	if e := s.db.QueryRow("SELECT count(*) FROM videos").Scan(&n); e != nil || n != 3 {
+	if e := s.db.QueryRow("SELECT count(*) FROM videos").Scan(&n); e != nil || n != len(demoVideos) {
 		t.Fatalf("seeded videos=%d err=%v", n, e)
 	}
 	vs, e := (MockProvider{}).ListVideos(context.Background(), Query{Q: "offline"})
 	if e != nil || len(vs) != 1 {
 		t.Fatalf("mock search=%d err=%v", len(vs), e)
+	}
+	var favorites int
+	if e := s.db.QueryRow("SELECT count(*) FROM favorites").Scan(&favorites); e != nil || favorites != len(demoFavorites) {
+		t.Fatalf("seeded favorites=%d err=%v", favorites, e)
 	}
 }
 func TestAPIRoutesAndSettings(t *testing.T) {

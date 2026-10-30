@@ -90,5 +90,12 @@ func (s *Server) syncFavorites(ctx context.Context) error {
 			return err
 		}
 	}
+	s.refreshFavoriteCounts()
 	return nil
+}
+
+// refreshFavoriteCounts makes the stored counters match the video table, so the
+// favorites page is always consistent with what the library can show.
+func (s *Server) refreshFavoriteCounts() {
+	_, _ = s.db.Exec(`UPDATE favorites SET video_count=(SELECT count(*) FROM videos WHERE videos.favorite_id=favorites.id)`)
 }

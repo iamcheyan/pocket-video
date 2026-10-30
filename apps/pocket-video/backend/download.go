@@ -15,6 +15,8 @@ import (
 
 type ProviderDownloadConfig struct{ OutputDir, Proxy string }
 
+// Download copies deterministic demo media into dst, reporting progress and
+// honouring the persisted byte offset so pause/resume is observable.
 func (MockProvider) Download(ctx context.Context, req DownloadRequest, dst string, offset int64, progress func(Progress)) (Result, error) {
 	source := dst + ".source" + filepath.Ext(dst)
 	if _, err := os.Stat(source); err != nil {
@@ -115,15 +117,8 @@ func generateDemoMedia(ctx context.Context, dst, kind string) error {
 	return nil
 }
 
-type YtDlpProvider struct{ Binary, OutputDir, Proxy string }
-
-func (y YtDlpProvider) Name() string { return "yt-dlp" }
-func (y YtDlpProvider) SyncFavorites(context.Context) ([]Favorite, error) {
-	return nil, fmt.Errorf("Bilibili login is not configured; yt-dlp cannot sync favorites")
-}
-func (y YtDlpProvider) ListVideos(context.Context, Query) ([]Video, error) {
-	return nil, fmt.Errorf("Bilibili login is not configured; yt-dlp cannot list favorites")
-}
+// Download runs yt-dlp for real Bilibili URLs. Go owns the process, parses
+// progress, and applies the saved proxy; the UI only ever sees HTTP.
 func (y YtDlpProvider) Download(ctx context.Context, req DownloadRequest, dst string, offset int64, progress func(Progress)) (Result, error) {
 	binary := y.Binary
 	if binary == "" {
@@ -183,6 +178,7 @@ func (y YtDlpProvider) Download(ctx context.Context, req DownloadRequest, dst st
 	}
 	return Result{}, fmt.Errorf("yt-dlp completed without an output file for %s", req.VideoID)
 }
+
 func parseYtProgress(line string) (int64, int64, bool) {
 	// Typical line: [download]  12.5% of 8.00MiB at 1.00MiB/s ETA 00:07
 	fields := strings.Fields(line)
@@ -207,6 +203,7 @@ func parseYtProgress(line string) (int64, int64, bool) {
 	}
 	return int64(float64(total) * pct / 100), total, true
 }
+
 func parseBytes(token string) (int64, error) {
 	token = strings.Trim(token, "~")
 	units := map[string]float64{"B": 1, "KiB": 1024, "MiB": 1024 * 1024, "GiB": 1024 * 1024 * 1024, "KB": 1000, "MB": 1e6, "GB": 1e9}
