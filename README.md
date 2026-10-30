@@ -1,5 +1,12 @@
 # pocket-video
 
+
+> **PocketJS port (product target):** `apps/pocket-video/pocket/` is the
+> native PocketJS program (Solid TSX → `.pocket` → `pocket-linux-kms`). The
+> `frontend/` tree remains the frozen React design reference and is not
+> extended. Frames: `docs/pocket/`; verification:
+> `apps/pocket-video/POCKETJS-VERIFICATION.md`.
+
 PocketVideo — a Bilibili favorite-folder offline archiver built as a PocketJS
 reference application: TypeScript/React client, Go service, SQLite, and yt-dlp
 behind a provider adapter.
