@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { Home, Library, Search, Download, Settings as SettingsIcon, Play, Pause, Globe, Sun, Moon, Monitor, Check, ChevronRight, Heart, Clock, HardDrive, RefreshCw, ArrowLeft } from 'lucide-react';
 import { installNavigation } from './navigation';
 import { copy as dict, type Copy, type Locale } from './i18n';
@@ -89,4 +89,7 @@ function App(){
   </main>
  </div>
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+const rootHost = window as typeof window & { __pocketVideoRoot?: Root };
+const container = document.getElementById('root')!;
+const root = rootHost.__pocketVideoRoot ?? (rootHost.__pocketVideoRoot = createRoot(container));
+root.render(<App/>);
