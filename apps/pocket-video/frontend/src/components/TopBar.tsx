@@ -55,7 +55,7 @@ export function TopBar({
           <Globe size={17} />
         </button>
         <button className="profile-avatar" aria-label={t.profile}>
-          P
+          {t.monogram.slice(0, 1)}
         </button>
       </div>
     </header>

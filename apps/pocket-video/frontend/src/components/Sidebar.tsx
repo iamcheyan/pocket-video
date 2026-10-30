@@ -38,7 +38,8 @@ export function Sidebar({
           <Play size={17} fill="currentColor" />
         </span>
         <span>
-          Pocket<span className="brand-light">Video</span>
+          {t.brandFirst}
+          <span className="brand-light">{t.brandSecond}</span>
         </span>
         <button className="close-nav" aria-label={t.closeMenu} onClick={onClose}>
           ×
@@ -69,7 +70,7 @@ export function Sidebar({
           <span className={'status-dot ' + (account?.authenticated ? 'online' : 'offline')} aria-hidden="true" />
         </div>
         <div className="side-foot" title={t.providerLabel}>
-          <span>{account ? account.provider : 'PocketVideo'}</span>
+          <span>{account ? account.provider : t.brand}</span>
           <span>
             {account?.authenticated ? t.accountSignedIn : t.accountSignedOut} · {t.version}
           </span>

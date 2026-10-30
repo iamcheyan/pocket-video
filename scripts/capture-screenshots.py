@@ -161,7 +161,22 @@ class Servers:
 
 
 def seed_demo_media() -> None:
-    """Make the queue and the offline player show real downloads."""
+    """Make the queue and the offline player show real downloads.
+
+    A dev server that is still proxying to a restarting backend can answer 500
+    for a moment, so the seed step retries before giving up.
+    """
+    for attempt in range(3):
+        try:
+            seed_demo_media_once()
+            return
+        except (urllib.error.URLError, urllib.error.HTTPError):
+            if attempt == 2:
+                raise
+            time.sleep(1.0)
+
+
+def seed_demo_media_once() -> None:
     tasks = http_json("/api/task") or []
     done = {f"{task['video_id']}:{task['kind']}" for task in tasks if task["status"] == "done"}
     for video_id, kind in DEMO_DOWNLOADS:

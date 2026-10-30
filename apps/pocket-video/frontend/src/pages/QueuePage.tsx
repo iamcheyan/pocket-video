@@ -75,7 +75,7 @@ export function QueuePage({
                   {running && (
                     <button
                       className="icon-button"
-                      aria-label={task.status === 'running' ? t.statusPaused : t.statusRunning}
+                      aria-label={task.status === 'running' ? t.pause : t.resume}
                       onClick={() => onToggle(task)}
                     >
                       {task.status === 'running' ? <Pause size={15} /> : <Play size={15} />}
