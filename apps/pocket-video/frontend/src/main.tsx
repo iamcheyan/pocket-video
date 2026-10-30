@@ -23,8 +23,10 @@ function VideoGrid({videos,open,download,t}:{videos:Video[];open:(video:Video)=>
 }
 
 function App(){
- const [lang,setLang]=useState<Locale>('en');
- const [page,setPage]=useState('home');
+ const captureParams=new URLSearchParams(location.search);
+ const hashPage=location.hash.replace(/^#\/?/,'')||'home';
+ const [lang,setLang]=useState<Locale>((captureParams.get('lang') as Locale)||'en');
+ const [page,setPage]=useState(hashPage);
  const [videos,setVideos]=useState<Video[]>([]);
  const [tasks,setTasks]=useState<Task[]>([]);
  const [selected,setSelected]=useState<Video|null>(null);
@@ -36,8 +38,9 @@ function App(){
  const api=async(path:string,options?:RequestInit)=>{try{const response=await fetch('/api'+path,options);return await response.json()}catch{return {error:{code:'network',message:'PocketVideo service unavailable'}}}};
  const applyTheme=(value:string)=>{document.documentElement.dataset.theme=value==='dark'||(value==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'};
  const refresh=async()=>{const [videoResult,taskResult]=await Promise.all([api('/videos?q='+encodeURIComponent(query)),api('/task')]);setVideos(videoResult.items||[]);setTasks(Array.isArray(taskResult)?taskResult:[])};
- useEffect(()=>{api('/settings').then((s:Settings)=>{if(s.error)return;setSettings(s);setLang(s.language as Locale);localStorage.lang=s.language;applyTheme(s.theme)});api('/task').then((x:Task[])=>setTasks(Array.isArray(x)?x:[]))},[]);
+ useEffect(()=>{api('/settings').then((s:Settings)=>{if(s.error)return;const locale=(captureParams.get('lang') as Locale)||s.language as Locale;const theme=captureParams.get('theme')||s.theme;setSettings({...s,language:locale,theme});setLang(locale);localStorage.lang=locale;applyTheme(theme)});api('/task').then((x:Task[])=>setTasks(Array.isArray(x)?x:[]))},[]);
  useEffect(()=>{api('/videos?q='+encodeURIComponent(query)).then(x=>setVideos(x.items||[]))},[query]);
+ useEffect(()=>{if(page==='detail'&&!selected&&videos.length)setSelected(videos[0])},[page,selected,videos]);
  useEffect(()=>{const timer=setInterval(()=>api('/task').then((x:Task[])=>setTasks(Array.isArray(x)?x:[])),1000);return()=>clearInterval(timer)},[]);
  useEffect(()=>installNavigation(
   ()=>{if(mobileNav){setMobileNav(false);return}if(page==='detail'){setPage('videos');return}if(page!=='home'){setPage('home')}},

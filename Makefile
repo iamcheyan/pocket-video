@@ -1,8 +1,9 @@
-.PHONY: test backend frontend dev
+.PHONY: test backend frontend dev screenshots
 
 test:
 	cd apps/pocket-video/backend && go test ./...
 	cd apps/pocket-video && node tests/check-i18n.mjs && npm --prefix frontend run build
+	python3 scripts/capture-screenshots.py --verify
 
 backend:
 	cd apps/pocket-video/backend && go run .
@@ -14,5 +15,4 @@ dev:
 	@echo 'Run make backend and make frontend in separate terminals.'
 
 screenshots:
-	./scripts/screenshots.sh
-
+	python3 scripts/capture-screenshots.py
