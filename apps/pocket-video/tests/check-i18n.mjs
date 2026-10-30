@@ -1,3 +1,26 @@
 import fs from 'node:fs';
-const source=fs.readFileSync(new URL('../frontend/src/main.tsx',import.meta.url),'utf8');
-const start=source.indexOf('const dict = {');if(start<0)throw new Error('Locale dictionary missing');const text=source.slice(start);const markers=[...text.matchAll(/(['"]?)(en|zh-CN|ja)\1:\{/g)];if(markers.length!==3)throw new Error(`Expected three locales; found ${markers.length}`);const locales=markers.map((m,i)=>{const body=text.slice(m.index+m[0].length,i+1<markers.length?markers[i+1].index:text.indexOf('} as const',m.index));return{name:m[2],keys:[...body.matchAll(/(?:^|,)([A-Za-z][A-Za-z0-9]*):(?=['"])/g)].map(x=>x[1]).sort()}});for(const x of locales.slice(1))if(x.keys.join(',')!==locales[0].keys.join(','))throw new Error(`${x.name} keys differ`);console.log(`i18n keys complete: ${locales.map(x=>`${x.name}=${x.keys.length}`).join(', ')}`);
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const source = fs.readFileSync(new URL('../frontend/src/i18n.ts', import.meta.url), 'utf8');
+const js = source
+  .replace(/export type [\s\S]*?\n};?\n/g, '')
+  .replace(/export const locales[^\n]*\n/g, '')
+  .replace('export const copy: Record<Locale, Copy> =', 'const copy =')
+  .replace('export const copy', 'const copy')
+  + '\nexport { copy };\n';
+const temp = path.join(fs.mkdtempSync(path.join(import.meta.dirname, '.i18n-')), 'dict.mjs');
+fs.writeFileSync(temp, js);
+const module = await import(pathToFileURL(temp).href);
+fs.rmSync(path.dirname(temp), { recursive: true, force: true });
+
+const locales = Object.keys(module.copy);
+if (locales.length !== 3) throw new Error(`Expected 3 locales, found ${locales.length}`);
+const baseline = Object.keys(module.copy.en).sort().join(',');
+for (const locale of locales) {
+  const keys = Object.keys(module.copy[locale]).sort().join(',');
+  if (keys !== baseline) throw new Error(`${locale} translation keys differ from en`);
+}
+const empty = locales.flatMap(locale => Object.entries(module.copy[locale]).filter(([, value]) => !String(value).trim()).map(([key]) => `${locale}.${key}`));
+if (empty.length) throw new Error(`Empty translations: ${empty.join(', ')}`);
+console.log(`i18n keys complete: ${locales.map(locale => `${locale}=${Object.keys(module.copy[locale]).length}`).join(', ')}`);

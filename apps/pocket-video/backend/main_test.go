@@ -26,7 +26,7 @@ func testServer(t *testing.T) *Server {
 	}
 	db.SetMaxOpenConns(1)
 	root := t.TempDir()
-	s := &Server{db: db, provider: MockProvider{}, root: root, cancels: map[int64]context.CancelFunc{}, dataRoot: root, providerConfig: ProviderDownloadConfig{OutputDir: filepath.Join(root, "downloads")}, workerStates: map[int64]string{}}
+	s := &Server{db: db, provider: MockProvider{}, root: root, cancels: map[int64]context.CancelFunc{}, providerConfig: ProviderDownloadConfig{OutputDir: filepath.Join(root, "downloads")}, workerStates: map[int64]string{}}
 	s.seed()
 	t.Cleanup(func() { db.Close() })
 	return s

@@ -92,9 +92,9 @@ type Server struct {
 	root           string
 	mu             sync.Mutex
 	cancels        map[int64]context.CancelFunc
-	dataRoot       string
 	providerConfig ProviderDownloadConfig
 	workerStates   map[int64]string
+	autoSyncEvery  time.Duration
 }
 
 func main() {
@@ -118,11 +118,12 @@ func main() {
 		cfg.Proxy = os.Getenv("POCKETVIDEO_PROXY")
 		p = YtDlpProvider{Binary: os.Getenv("YT_DLP_BINARY"), OutputDir: cfg.OutputDir, Proxy: cfg.Proxy}
 	}
-	s := &Server{db: db, provider: p, root: root, cancels: map[int64]context.CancelFunc{}, dataRoot: root, providerConfig: cfg, workerStates: map[int64]string{}}
+	s := &Server{db: db, provider: p, root: root, cancels: map[int64]context.CancelFunc{}, providerConfig: cfg, workerStates: map[int64]string{}}
 	s.seed()
 	if _, err := db.Exec("UPDATE download_tasks SET status='paused',error='service restarted; resume to continue' WHERE status='running'"); err != nil {
 		log.Fatal(err)
 	}
+	s.startAutoSync(context.Background())
 	mux := http.NewServeMux()
 	s.routes(mux)
 	addr := os.Getenv("POCKETVIDEO_ADDR")
@@ -131,10 +132,6 @@ func main() {
 	}
 	log.Printf("PocketVideo %s listening on %s", p.Name(), addr)
 	log.Fatal(http.ListenAndServe(addr, cors(mux)))
-}
-func migrate(db *sql.DB) error {
-	_, e := db.Exec(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS schema_version(version INTEGER NOT NULL); INSERT INTO schema_version SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_version); CREATE TABLE IF NOT EXISTS favorites(id TEXT PRIMARY KEY,title TEXT NOT NULL,video_count INTEGER NOT NULL DEFAULT 0,last_sync_at TEXT); CREATE TABLE IF NOT EXISTS videos(id TEXT PRIMARY KEY,favorite_id TEXT NOT NULL,title TEXT NOT NULL,creator TEXT NOT NULL,duration INTEGER NOT NULL,cover TEXT,video_path TEXT,audio_path TEXT,FOREIGN KEY(favorite_id) REFERENCES favorites(id)); CREATE INDEX IF NOT EXISTS videos_title_idx ON videos(title); CREATE TABLE IF NOT EXISTS download_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,video_id TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('video','audio')),status TEXT NOT NULL CHECK(status IN ('queued','running','paused','done','failed')),downloaded_bytes INTEGER NOT NULL DEFAULT 0,total_bytes INTEGER NOT NULL DEFAULT 0,error TEXT,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK(id=1),language TEXT NOT NULL,theme TEXT NOT NULL,cache_dir TEXT NOT NULL,download_dir TEXT NOT NULL,sync_minutes INTEGER NOT NULL,auto_sync INTEGER NOT NULL,proxy TEXT NOT NULL);`)
-	return e
 }
 func (s *Server) seed() {
 	var n int
@@ -446,23 +443,13 @@ func (s *Server) resume(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]string{"status": "running"})
 }
 func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
-	fs, e := s.provider.SyncFavorites(r.Context())
-	if e != nil {
-		fail(w, 503, "provider_unavailable", e.Error())
+	var favorites, videos int
+	if err := s.syncFavorites(r.Context()); err != nil {
+		fail(w, 503, "provider_unavailable", err.Error())
 		return
 	}
-	for _, f := range fs {
-		s.db.Exec("INSERT INTO favorites(id,title,video_count,last_sync_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,video_count=excluded.video_count,last_sync_at=excluded.last_sync_at", f.ID, f.Title, f.VideoCount, f.LastSyncAt)
-	}
-	vs, e := s.provider.ListVideos(r.Context(), Query{})
-	if e != nil {
-		fail(w, 503, "provider_unavailable", e.Error())
-		return
-	}
-	for _, v := range vs {
-		s.db.Exec("INSERT INTO videos(id,favorite_id,title,creator,duration,cover) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title", v.ID, v.FavoriteID, v.Title, v.Creator, v.Duration, v.Cover)
-	}
-	jsonOut(w, map[string]any{"favorites": len(fs), "videos": len(vs)})
+	_ = s.db.QueryRow("SELECT (SELECT count(*) FROM favorites),(SELECT count(*) FROM videos)").Scan(&favorites, &videos)
+	jsonOut(w, map[string]any{"favorites": favorites, "videos": videos})
 }
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	var x Settings

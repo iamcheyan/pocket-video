@@ -8,7 +8,11 @@ PocketVideo keeps the browser as a thin TypeScript/React client. It calls a Go H
 
 ## Persistence and media
 
-SQLite schema setup runs at startup and stores favorites, videos, tasks, settings, and schema version. Mock media is copied to the configured download directory with persisted byte offsets, and `/api/task/{id}/resume` continues from that offset. Real local media is served through `/api/media/{id}` with `http.ServeFile`, which supports byte ranges; audio uses `?kind=audio`. Cache directory is reserved for artwork and metadata.
+SQLite migrations are ordered and transactional; each successful step appends its version to `schema_version`. The service stores favorites, videos, tasks, settings, and media status. Mock media is copied to the configured download directory with persisted byte offsets, and `/api/task/{id}/resume` continues from that offset. Local media is served through `/api/media/{id}` with `http.ServeFile`, which supports byte ranges; audio uses `?kind=audio`. Cache directory is reserved for artwork and metadata.
+
+## Automatic synchronization
+
+The service starts a goroutine that reads `auto_sync` and `sync_minutes` from settings. When enabled, it waits for the configured interval and refreshes favorites and videos through the active provider. Failures are logged and retried without crashing the service; disabling automatic sync stops provider calls. Manual `POST /api/sync` uses the same synchronization function.
 
 ## PocketJS Runtime / .pj migration
 

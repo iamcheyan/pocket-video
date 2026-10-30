@@ -2,7 +2,7 @@
 
 The Go service uses SQLite via `modernc.org/sqlite`, so builds do not require cgo. The database is `${POCKETVIDEO_DATA:-./data}/pocketvideo.db`; startup enables WAL and creates schema version 1 idempotently.
 
-- `schema_version(version)` tracks active schema version 1. Startup creates each table idempotently; future versions should use ordered migrations and update this value only after successful migration.
+- `schema_version(version)` records every applied migration. Migrations are ordered, each runs in its own transaction, and rerunning startup leaves the version unchanged.
 - `favorites(id,title,video_count,last_sync_at)` stores synchronized collections.
 - `videos(id,favorite_id,title,creator,duration,cover,video_path,audio_path)` stores metadata and cached media references; title has an index.
 - `download_tasks(id,video_id,kind,status,downloaded_bytes,total_bytes,error,updated_at)` constrains kinds to video/audio and states to queued/running/paused/done/failed.
