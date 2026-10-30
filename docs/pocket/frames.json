@@ -17,14 +17,14 @@
     {
       "name": "home",
       "file": "screen-home.png",
-      "sha256": "98b2be81df02cf16e3c492579e11284f29eecf93dace02ecb5a7778eeb72a9bb",
-      "bytes": 37989
+      "sha256": "c110dc06d40e1b84bca418eeccda029e409d7eab21744fa6e7860d37d81a4293",
+      "bytes": 40071
     },
     {
       "name": "home-focus",
       "file": "screen-home-focus.png",
-      "sha256": "31fda8e0f95e1529efe7ace26959bf259755205a952da5699fca8b95632a8a40",
-      "bytes": 38162
+      "sha256": "ebc3647d7bc089abeb672191d7345a74393661e46733ea6f74614dc4b518a61a",
+      "bytes": 40077
     },
     {
       "name": "detail",
