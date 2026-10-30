@@ -4,11 +4,11 @@ PocketVideo keeps the browser as a thin TypeScript/React client. It calls a Go H
 
 ## Providers
 
-`VideoProvider` supplies `Name`, `SyncFavorites`, `ListVideos`, and `Download`. `MockProvider` serves stable demo records and deterministic progress for offline development. `YtDlpProvider` is selected with `POCKETVIDEO_PROVIDER=ytdlp`; its operations return a useful missing-login message if favorites cannot be fetched. It receives IDs from the service and launches yt-dlp only from Go. Bilibili authenticated favorite extraction is not yet implemented. A future `BBDownProvider` can implement the same interface without changing routes or UI.
+`VideoProvider` supplies `Name`, `SyncFavorites`, `ListVideos`, and `Download`. `MockProvider` serves stable demo records and generates playable test MP4/M4A with ffmpeg while reporting copied-byte progress. `YtDlpProvider` is selected with `POCKETVIDEO_PROVIDER=ytdlp`; Go runs yt-dlp for video/audio downloads, parses progress, supports yt-dlp's native continuation, writes into the configured download directory, and applies the configured proxy. Favorite listing requires Bilibili login and currently returns an actionable error. A future `BBDownProvider` can implement the same interface without changing routes or UI.
 
 ## Persistence and media
 
-SQLite migrations run at startup and store favorites, videos, tasks, settings, and the schema version. The development downloader writes a clearly labeled placeholder media file; it is useful to demonstrate task flow but is not playable video content. Real media is served through `/api/media/{id}` with `http.ServeFile`, which supports byte ranges. Settings directory fields are currently preferences; the demo writes into the configured service data root.
+SQLite schema setup runs at startup and stores favorites, videos, tasks, settings, and schema version. Mock media is copied to the configured download directory with persisted byte offsets, and `/api/task/{id}/resume` continues from that offset. Real local media is served through `/api/media/{id}` with `http.ServeFile`, which supports byte ranges; audio uses `?kind=audio`. Cache directory is reserved for artwork and metadata.
 
 ## PocketJS Runtime / .pj migration
 

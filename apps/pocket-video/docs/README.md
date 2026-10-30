@@ -2,16 +2,18 @@
 
 ## Quick start
 
-Requirements: Go 1.24+, Node.js 20+, npm. Install dependencies and run two terminals:
+Requirements: Go, Node.js, npm, and `ffmpeg` (used to generate playable deterministic demo media).
+
+Start one terminal per service:
 
 ```sh
 cd apps/pocket-video/backend && go mod download && go run .
 cd apps/pocket-video/frontend && npm install && npm run dev
 ```
 
-Open `http://localhost:5173`. The service defaults to deterministic Mock mode and creates SQLite data under `./data`. To select the real-provider error path, run the backend with `POCKETVIDEO_PROVIDER=ytdlp`; yt-dlp must be installed for real process execution, but authenticated Bilibili sync is not implemented. Never add cookies to this repository.
+Open `http://localhost:5173`. The backend defaults to Mock mode and stores SQLite data under `./data`. For the real download provider, set `POCKETVIDEO_PROVIDER=ytdlp` when starting the backend; install yt-dlp separately. The provider runs yt-dlp only from Go, downloads media into the configured download directory, and applies the saved proxy. Authenticated Bilibili favorite sync requires login and currently reports a clear unavailable error. Do not place cookies or credentials in the repository.
 
-Run `make test` at repository root for backend tests, i18n key parity, and frontend TypeScript/Vite build. Run `make backend` and `make frontend` as convenient wrappers.
+Run `make test` from the repository root for Go unit/integration coverage, i18n key parity, and TypeScript/Vite production build. Run `make backend` and `make frontend` in separate terminals as launch helpers.
 
 ## Layout
 

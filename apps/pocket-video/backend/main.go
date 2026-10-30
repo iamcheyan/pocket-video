@@ -4,12 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -67,7 +64,7 @@ type VideoProvider interface {
 	Name() string
 	SyncFavorites(context.Context) ([]Favorite, error)
 	ListVideos(context.Context, Query) ([]Video, error)
-	Download(context.Context, DownloadRequest, func(Progress)) (Result, error)
+	Download(context.Context, DownloadRequest, string, int64, func(Progress)) (Result, error)
 }
 type MockProvider struct{}
 
@@ -88,49 +85,16 @@ func (MockProvider) ListVideos(_ context.Context, q Query) ([]Video, error) {
 	}
 	return out, nil
 }
-func (MockProvider) Download(ctx context.Context, r DownloadRequest, p func(Progress)) (Result, error) {
-	const total int64 = 5 * 1024 * 1024
-	for n := int64(0); n <= total; n += total / 20 {
-		select {
-		case <-ctx.Done():
-			return Result{}, ctx.Err()
-		default:
-		}
-		p(Progress{n, total})
-		time.Sleep(200 * time.Millisecond)
-	}
-	return Result{}, nil
-}
-
-type YtDlpProvider struct{ Binary string }
-
-func (y YtDlpProvider) Name() string { return "yt-dlp" }
-func (y YtDlpProvider) SyncFavorites(context.Context) ([]Favorite, error) {
-	return nil, errors.New("Bilibili login is not configured; yt-dlp provider cannot sync favorites")
-}
-func (y YtDlpProvider) ListVideos(context.Context, Query) ([]Video, error) {
-	return nil, errors.New("Bilibili login is not configured; yt-dlp provider cannot list favorites")
-}
-func (y YtDlpProvider) Download(ctx context.Context, r DownloadRequest, p func(Progress)) (Result, error) {
-	bin := y.Binary
-	if bin == "" {
-		bin = "yt-dlp"
-	}
-	cmd := exec.CommandContext(ctx, bin, "--no-progress", "--newline", "-o", "%(id)s.%(ext)s", "https://www.bilibili.com/video/"+r.VideoID)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return Result{}, fmt.Errorf("yt-dlp: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	p(Progress{})
-	return Result{}, nil
-}
 
 type Server struct {
-	db       *sql.DB
-	provider VideoProvider
-	root     string
-	mu       sync.Mutex
-	cancels  map[int64]context.CancelFunc
+	db             *sql.DB
+	provider       VideoProvider
+	root           string
+	mu             sync.Mutex
+	cancels        map[int64]context.CancelFunc
+	dataRoot       string
+	providerConfig ProviderDownloadConfig
+	workerStates   map[int64]string
 }
 
 func main() {
@@ -149,11 +113,16 @@ func main() {
 		log.Fatal(err)
 	}
 	var p VideoProvider = MockProvider{}
+	cfg := ProviderDownloadConfig{OutputDir: filepath.Join(root, "downloads")}
 	if os.Getenv("POCKETVIDEO_PROVIDER") == "ytdlp" {
-		p = YtDlpProvider{}
+		cfg.Proxy = os.Getenv("POCKETVIDEO_PROXY")
+		p = YtDlpProvider{Binary: os.Getenv("YT_DLP_BINARY"), OutputDir: cfg.OutputDir, Proxy: cfg.Proxy}
 	}
-	s := &Server{db: db, provider: p, root: root, cancels: map[int64]context.CancelFunc{}}
+	s := &Server{db: db, provider: p, root: root, cancels: map[int64]context.CancelFunc{}, dataRoot: root, providerConfig: cfg, workerStates: map[int64]string{}}
 	s.seed()
+	if _, err := db.Exec("UPDATE download_tasks SET status='paused',error='service restarted; resume to continue' WHERE status='running'"); err != nil {
+		log.Fatal(err)
+	}
 	mux := http.NewServeMux()
 	s.routes(mux)
 	addr := os.Getenv("POCKETVIDEO_ADDR")
@@ -170,18 +139,17 @@ func migrate(db *sql.DB) error {
 func (s *Server) seed() {
 	var n int
 	s.db.QueryRow("SELECT count(*) FROM favorites").Scan(&n)
-	if n > 0 {
-		return
+	if n == 0 {
+		f, _ := (MockProvider{}).SyncFavorites(context.Background())
+		for _, x := range f {
+			_, _ = s.db.Exec("INSERT OR IGNORE INTO favorites(id,title,video_count,last_sync_at) VALUES(?,?,?,?)", x.ID, x.Title, x.VideoCount, x.LastSyncAt)
+		}
+		vs, _ := (MockProvider{}).ListVideos(context.Background(), Query{})
+		for _, v := range vs {
+			_, _ = s.db.Exec("INSERT OR IGNORE INTO videos(id,favorite_id,title,creator,duration,cover) VALUES(?,?,?,?,?,?)", v.ID, v.FavoriteID, v.Title, v.Creator, v.Duration, v.Cover)
+		}
 	}
-	f, _ := (MockProvider{}).SyncFavorites(context.Background())
-	for _, x := range f {
-		s.db.Exec("INSERT INTO favorites(id,title,video_count,last_sync_at) VALUES(?,?,?,?)", x.ID, x.Title, x.VideoCount, x.LastSyncAt)
-	}
-	vs, _ := (MockProvider{}).ListVideos(context.Background(), Query{})
-	for _, v := range vs {
-		s.db.Exec("INSERT INTO videos(id,favorite_id,title,creator,duration,cover) VALUES(?,?,?,?,?,?)", v.ID, v.FavoriteID, v.Title, v.Creator, v.Duration, v.Cover)
-	}
-	s.db.Exec("INSERT OR IGNORE INTO settings VALUES(1,'en','system',?,?,60,0,'')", filepath.Join(s.root, "cache"), filepath.Join(s.root, "downloads"))
+	_, _ = s.db.Exec("INSERT OR IGNORE INTO settings(id,language,theme,cache_dir,download_dir,sync_minutes,auto_sync,proxy) VALUES(1,'en','system',?,?,60,0,'')", filepath.Join(s.root, "cache"), filepath.Join(s.root, "downloads"))
 }
 func (s *Server) routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/health", s.health)
@@ -307,79 +275,171 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "not_found", "video not found")
 		return
 	}
-	res, e := s.db.Exec("INSERT INTO download_tasks(video_id,kind,status,total_bytes) VALUES(?,?,'queued',5242880)", req.VideoID, req.Kind)
-	if e != nil {
-		fail(w, 500, "database", e.Error())
+	res, err := s.db.Exec("INSERT INTO download_tasks(video_id,kind,status) VALUES(?,?,'queued')", req.VideoID, req.Kind)
+	if err != nil {
+		fail(w, 500, "database", err.Error())
 		return
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		fail(w, 500, "database", err.Error())
+		return
+	}
 	s.start(id, req)
-	w.WriteHeader(202)
+	w.WriteHeader(http.StatusAccepted)
 	jsonOut(w, map[string]any{"id": id, "status": "queued"})
 }
 func (s *Server) start(id int64, req DownloadRequest) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
+	if s.cancels[id] != nil {
+		s.mu.Unlock()
+		cancel()
+		return
+	}
 	s.cancels[id] = cancel
+	s.workerStates[id] = "running"
 	s.mu.Unlock()
 	go func() {
-		defer func() { s.mu.Lock(); delete(s.cancels, id); s.mu.Unlock() }()
-		s.db.Exec("UPDATE download_tasks SET status='running',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?", id)
-		result, err := (MockProvider{}).Download(ctx, req, func(p Progress) {
-			s.db.Exec("UPDATE download_tasks SET downloaded_bytes=?,total_bytes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", p.Downloaded, p.Total, id)
+		defer func() {
+			cancel()
+			s.mu.Lock()
+			delete(s.cancels, id)
+			if s.workerStates[id] == "running" {
+				s.workerStates[id] = "done"
+			}
+			s.mu.Unlock()
+		}()
+		var offset int64
+		if err := s.db.QueryRow("SELECT downloaded_bytes FROM download_tasks WHERE id=?", id).Scan(&offset); err != nil {
+			return
+		}
+		if _, err := s.db.Exec("UPDATE download_tasks SET status='running',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?", id); err != nil {
+			return
+		}
+		var downloadDir, proxy, cacheDir string
+		if err := s.db.QueryRow("SELECT download_dir,proxy,cache_dir FROM settings WHERE id=1").Scan(&downloadDir, &proxy, &cacheDir); err != nil {
+			s.failTask(id, err)
+			return
+		}
+		if downloadDir == "" {
+			downloadDir = s.providerConfig.OutputDir
+		}
+		if s.provider.Name() == "mock" {
+			if cacheDir == "" {
+				cacheDir = filepath.Join(s.root, "cache")
+			}
+			if err := os.MkdirAll(cacheDir, 0700); err != nil {
+				s.failTask(id, err)
+				return
+			}
+		}
+		if err := os.MkdirAll(downloadDir, 0700); err != nil {
+			s.failTask(id, err)
+			return
+		}
+		dst := filepath.Join(downloadDir, req.VideoID+"."+req.Kind+map[string]string{"video": ".mp4", "audio": ".m4a"}[req.Kind])
+		provider := s.provider
+		if s.provider.Name() == "yt-dlp" {
+			provider = YtDlpProvider{Binary: os.Getenv("YT_DLP_BINARY"), OutputDir: downloadDir, Proxy: proxy}
+			dst = ""
+		}
+		result, err := provider.Download(ctx, req, dst, offset, func(p Progress) {
+			_, _ = s.db.Exec("UPDATE download_tasks SET downloaded_bytes=?,total_bytes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", p.Downloaded, p.Total, id)
 		})
 		if ctx.Err() != nil {
-			s.db.Exec("UPDATE download_tasks SET status='paused' WHERE id=?", id)
+			_, _ = s.db.Exec("UPDATE download_tasks SET status='paused',updated_at=CURRENT_TIMESTAMP WHERE id=?", id)
+			s.mu.Lock()
+			s.workerStates[id] = "paused"
+			s.mu.Unlock()
 			return
 		}
 		if err != nil {
-			s.db.Exec("UPDATE download_tasks SET status='failed',error=? WHERE id=?", err.Error(), id)
+			_, _ = s.db.Exec("UPDATE download_tasks SET status='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", err.Error(), id)
+			s.mu.Lock()
+			s.workerStates[id] = "failed"
+			s.mu.Unlock()
 			return
 		}
-		os.MkdirAll(filepath.Join(s.root, "downloads"), 0700)
-		name := req.VideoID + "." + req.Kind
-		path := filepath.Join(s.root, "downloads", name)
-		os.WriteFile(path, []byte("PocketVideo offline demo media: "+req.VideoID), 0600)
-		_ = result
-		s.db.Exec("UPDATE download_tasks SET status='done',downloaded_bytes=total_bytes WHERE id=?", id)
+		if result.Path == "" {
+			_, _ = s.db.Exec("UPDATE download_tasks SET status='failed',error='provider returned no media path' WHERE id=?", id)
+			s.mu.Lock()
+			s.workerStates[id] = "failed"
+			s.mu.Unlock()
+			return
+		}
 		column := "video_path"
 		if req.Kind == "audio" {
 			column = "audio_path"
 		}
-		s.db.Exec("UPDATE videos SET "+column+"=? WHERE id=?", path, req.VideoID)
+		if _, err = s.db.Exec("UPDATE videos SET "+column+"=? WHERE id=?", result.Path, req.VideoID); err != nil {
+			_, _ = s.db.Exec("UPDATE download_tasks SET status='failed',error=? WHERE id=?", err.Error(), id)
+			s.mu.Lock()
+			s.workerStates[id] = "failed"
+			s.mu.Unlock()
+			return
+		}
+		_, _ = s.db.Exec("UPDATE download_tasks SET status='done',downloaded_bytes=total_bytes,error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?", id)
+		s.mu.Lock()
+		s.workerStates[id] = "done"
+		s.mu.Unlock()
 	}()
 }
+func (s *Server) failTask(id int64, err error) {
+	_, _ = s.db.Exec("UPDATE download_tasks SET status='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", err.Error(), id)
+	s.mu.Lock()
+	s.workerStates[id] = "failed"
+	s.mu.Unlock()
+}
 func (s *Server) pause(w http.ResponseWriter, r *http.Request) {
-	id, e := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if e != nil {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
 		fail(w, 400, "invalid_id", "invalid task id")
 		return
 	}
 	s.mu.Lock()
-	c := s.cancels[id]
+	cancel := s.cancels[id]
+	state := s.workerStates[id]
 	s.mu.Unlock()
-	if c == nil {
+	if cancel == nil || state != "running" {
 		fail(w, 409, "invalid_state", "task is not running")
 		return
 	}
-	c()
-	jsonOut(w, map[string]string{"status": "pausing"})
+	cancel()
+	for {
+		s.mu.Lock()
+		state = s.workerStates[id]
+		s.mu.Unlock()
+		if state == "paused" || state == "failed" || state == "done" {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	var status string
+	_ = s.db.QueryRow("SELECT status FROM download_tasks WHERE id=?", id).Scan(&status)
+	if status != "paused" {
+		fail(w, 409, "invalid_state", "task finished before pause completed")
+		return
+	}
+	jsonOut(w, map[string]string{"status": "paused"})
 }
 func (s *Server) resume(w http.ResponseWriter, r *http.Request) {
-	id, e := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if e != nil {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
 		fail(w, 400, "invalid_id", "invalid task id")
 		return
 	}
 	var req DownloadRequest
 	var status string
-	e = s.db.QueryRow("SELECT video_id,kind,status FROM download_tasks WHERE id=?", id).Scan(&req.VideoID, &req.Kind, &status)
-	if e == sql.ErrNoRows {
+	if err = s.db.QueryRow("SELECT video_id,kind,status FROM download_tasks WHERE id=?", id).Scan(&req.VideoID, &req.Kind, &status); err == sql.ErrNoRows {
 		fail(w, 404, "not_found", "task not found")
 		return
+	} else if err != nil {
+		fail(w, 500, "database", err.Error())
+		return
 	}
-	if status != "paused" {
-		fail(w, 409, "invalid_state", "only paused tasks can resume")
+	if status != "paused" && status != "queued" {
+		fail(w, 409, "invalid_state", "only queued or paused tasks can resume")
 		return
 	}
 	s.start(id, req)
@@ -438,8 +498,16 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) media(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	kind := r.URL.Query().Get("kind")
+	column := "video_path"
+	if kind == "audio" {
+		column = "audio_path"
+	} else if kind != "" && kind != "video" {
+		fail(w, 400, "invalid_kind", "kind must be video or audio")
+		return
+	}
 	var path string
-	e := s.db.QueryRow("SELECT video_path FROM videos WHERE id=?", id).Scan(&path)
+	e := s.db.QueryRow("SELECT COALESCE("+column+",'') FROM videos WHERE id=?", id).Scan(&path)
 	if e != nil || path == "" {
 		fail(w, 404, "media_not_found", "downloaded video is unavailable")
 		return
