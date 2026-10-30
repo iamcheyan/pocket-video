@@ -1,8 +1,9 @@
-.PHONY: test backend frontend dev screenshots
+.PHONY: test backend frontend dev screenshots verify
 
 test:
 	cd apps/pocket-video/backend && go test ./...
-	cd apps/pocket-video && node tests/check-i18n.mjs && npm --prefix frontend run build
+	cd apps/pocket-video && node --test --experimental-strip-types tests/*.test.ts
+	cd apps/pocket-video/frontend && npm run build
 	python3 scripts/capture-screenshots.py --verify
 
 backend:
@@ -16,3 +17,6 @@ dev:
 
 screenshots:
 	python3 scripts/capture-screenshots.py
+
+verify:
+	python3 scripts/capture-screenshots.py --verify
