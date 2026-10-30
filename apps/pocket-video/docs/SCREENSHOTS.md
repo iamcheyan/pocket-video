@@ -8,6 +8,11 @@ poster, and the custom audio transport. 21 files have distinct SHA-256 hashes an
 verified PNG dimensions; `make test` fails on a missing, duplicated, wrong-sized,
 or horizontally overflowing state.
 
+## Provenance
+
+`manifest.json` in this directory is rewritten on every capture with the timestamp, capture
+URL, Chrome binary and SHA-256 of each PNG, so a run can be tied to its artefacts.
+
 ## Screens and states (1280×720 CSS viewport, 1× scale)
 
 | File | Output | State |

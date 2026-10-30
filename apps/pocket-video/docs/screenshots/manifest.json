@@ -1,0 +1,133 @@
+{
+  "captured_at": "2026-10-31T01:32:24+0900",
+  "capture_url": "http://127.0.0.1:5173",
+  "chrome": "/usr/bin/google-chrome",
+  "screenshots": [
+    {
+      "file": "collection-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "88179076f8c788ca85adc24d5e69b2bab3e79cf798d1dd31a0b582ea9b2465f8"
+    },
+    {
+      "file": "detail-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "d44bc4fcf6b41ecf6d22c40aa103c1327f1e997e0b81a083c0c28bf3cf8ee00c"
+    },
+    {
+      "file": "detail-audio-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "e8133991c622c49798fdb8058b0d0e47f500d60569db6f73243fc6ccc1d9f4fb"
+    },
+    {
+      "file": "dpi-1_5x.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "76c09491764ba6ba83b9b166bd25e4e3a66fdfb97dfc08d76193b87cb140ce0c"
+    },
+    {
+      "file": "dpi-1x.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "6998387585b0ae4c9badb9a1b2cdec74940cce363baa525b97d15f554b624943"
+    },
+    {
+      "file": "dpi-2x.png",
+      "width": 2560,
+      "height": 1440,
+      "sha256": "3a6c49ca3de6702383e8485d165512c2631092fe1a6e5e94d03c2467dba83388"
+    },
+    {
+      "file": "dpi-3x.png",
+      "width": 3840,
+      "height": 2160,
+      "sha256": "04bb94e654f1d523d12780e39806df31485783f1553b7dbd65238a85eff7e332"
+    },
+    {
+      "file": "favorites-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "651b787afcb82d7bed8368169694e94202c9cc28bf2cea3529486a74e4e12a99"
+    },
+    {
+      "file": "home-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "96784bab92e78e116a2d03765e418c97f09b52b64391fcccff891b86235dd306"
+    },
+    {
+      "file": "language-ja-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "57def29dc7b7d10313c2b48eeae36003d1c904916f04500a6f645110897e3029"
+    },
+    {
+      "file": "language-zh-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "f66cdb53022b72b1834b1bbfa973170117b408d1f007b1c7d0408791deb9ada6"
+    },
+    {
+      "file": "queue-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "ea243c00788029a540753f8723844a11e3208f78b3bcc76dd78fac7b5fdcb29e"
+    },
+    {
+      "file": "settings-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "548be2a6cd8deb6cd94ff18897ab41d4886b5e0c0b1bfe4b33b6455d26efb603"
+    },
+    {
+      "file": "theme-dark-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "58e91a815edbb6d9dc3bd1621160936a3027e051837930c218189ddcd5ac59e9"
+    },
+    {
+      "file": "videos-1280x720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "62948cd9516210cc0b483a27f48a1fccb71247d26c7077037368dd7131bddc48"
+    },
+    {
+      "file": "view-1280-720.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "5ff1e18dd2590736a7e5e9ece9802d59c91b2c950b8e41f3f8aee3786835869c"
+    },
+    {
+      "file": "view-1920-1080.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "ca1a4aa4b7d284630e55daead99e6b023f148a448e7f4dddf21fe21bd89921e8"
+    },
+    {
+      "file": "view-320-240.png",
+      "width": 320,
+      "height": 240,
+      "sha256": "c89f1c44b5312adefd110db753157712a04383ba283ea8ccd5e71c0939dc0c02"
+    },
+    {
+      "file": "view-480-320.png",
+      "width": 480,
+      "height": 320,
+      "sha256": "3614af818d74f40fde3083ef17d984778a1aa3f4fe428eb8fa6d96dc78fa5c1b"
+    },
+    {
+      "file": "view-640-480.png",
+      "width": 640,
+      "height": 480,
+      "sha256": "cdaf47fe5ff0b97aef2560dd5ae91b1df7eb9cfb53749b6f46c5a5d2b29c1a9f"
+    },
+    {
+      "file": "view-720-720.png",
+      "width": 720,
+      "height": 720,
+      "sha256": "e1eadbe0c6161800f9e7859e591b35e9138a30de5e67fba71ed85bf45a1028ea"
+    }
+  ]
+}

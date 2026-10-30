@@ -250,14 +250,28 @@ def check_images() -> None:
     if missing or extra:
         raise SystemExit(f"screenshot set mismatch; missing={sorted(missing)} extra={sorted(extra)}")
     seen: dict[str, list[str]] = {}
+    entries: list[dict[str, Any]] = []
     for file in files:
         actual = png_size(file)
         if actual != expected[file.name]:
             raise SystemExit(f"{file.name}: PNG size {actual}, expected {expected[file.name]}")
         digest = hashlib.sha256(file.read_bytes()).hexdigest()
         seen.setdefault(digest, []).append(file.name)
+        entries.append({
+            "file": file.name,
+            "width": actual[0],
+            "height": actual[1],
+            "sha256": digest,
+        })
     duplicates = {digest: group for digest, group in seen.items() if len(group) > 1}
-    print(f"png files={len(files)} unique_sha256={len(seen)}")
+    manifest = {
+        "captured_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "capture_url": APP,
+        "chrome": CHROME,
+        "screenshots": entries,
+    }
+    (SHOTS / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    print(f"png files={len(files)} unique_sha256={len(seen)} manifest=screenshots/manifest.json")
     if duplicates:
         for digest, group in duplicates.items():
             print(f"DUPLICATE {digest[:16]}: {', '.join(group)}")
