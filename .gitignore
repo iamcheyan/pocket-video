@@ -2,3 +2,4 @@ apps/pocket-video/backend/data/
 apps/pocket-video/frontend/node_modules/
 apps/pocket-video/frontend/dist/
 apps/pocket-video/frontend/tsconfig.tsbuildinfo
+scripts/__pycache__/
