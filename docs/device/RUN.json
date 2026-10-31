@@ -1,0 +1,17 @@
+{
+  "app": "video",
+  "package_sha256": "7548161fe8ce3148414b8d3d24932bf6c7eb26fe9a48fc726373f6dd4d727849",
+  "launcher_before": "21225",
+  "launcher_after": "16016",
+  "boot_sha256": "6ed41612bce1723d1eda64b5a0ee9333a105ed498b7085c03267539cf6c1b32d",
+  "frames": [
+    "home",
+    "home-focus",
+    "detail",
+    "detail-action",
+    "settings",
+    "settings-toggled"
+  ],
+  "runtime": "/mnt/sdcard/System/pocketjs/bin/pocket-linux-kms",
+  "deploy": "/storage/pjs/pocket-video"
+}
